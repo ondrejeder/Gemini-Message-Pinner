@@ -1,0 +1,131 @@
+/* ---------------------------------------------------------
+   SIDEBAR (Clean Dark Mode Look)
+--------------------------------------------------------- */
+#my-bookmark-sidebar {
+  position: fixed;
+  top: 70px; /* Aligns better with top bar */
+  right: 20px;
+  width: 260px;
+  max-height: 80vh;
+  background-color: #1e1f20; /* Matches Gemini Dark Surface */
+  border: 1px solid #444746; /* Subtle border */
+  border-radius: 16px;       /* More rounded corners like Gemini cards */
+  overflow-y: auto;
+  z-index: 9999;
+  padding: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  font-family: "Google Sans", Roboto, sans-serif; /* Native font feel */
+  display: none; 
+}
+
+/* Header with Icon */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e3e3e3;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #444746;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-header svg {
+  fill: #a8c7fa; /* Google Blue tint for the icon */
+}
+
+/* ---------------------------------------------------------
+   BOOKMARK ITEMS (Cards)
+--------------------------------------------------------- */
+.bookmark-item {
+  background: #28292a; /* Slightly lighter than bg */
+  color: #e3e3e3;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bookmark-item:hover {
+  background: #363739;
+  border-color: #5e5e5e;
+}
+
+.bookmark-text {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-right: 8px;
+  opacity: 0.9;
+}
+
+/* Action Icons (Edit / Delete) inside the card */
+.bookmark-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0; /* Hidden by default for cleaner look */
+  transition: opacity 0.2s;
+}
+
+.bookmark-item:hover .bookmark-actions {
+  opacity: 1; /* Show only on hover */
+}
+
+.bm-action {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bm-action:hover { background-color: rgba(255,255,255,0.1); }
+.bm-action svg { width: 14px; height: 14px; fill: #c4c7c5; }
+.bm-action:hover svg { fill: #fff; }
+
+/* ---------------------------------------------------------
+   THE CHAT BUTTON (Native Look)
+--------------------------------------------------------- */
+.my-bookmark-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  /* Fixed size for touch target, same as native buttons */
+  width: 40px; 
+  height: 40px;
+  border-radius: 50%; /* Perfect circle */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  transition: background-color 0.2s;
+  color: #c4c7c5; /* Default Gemini Icon Color */
+}
+
+/* Hover effect: Subtle circle background */
+.my-bookmark-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #e3e3e3;
+}
+
+.my-bookmark-btn svg {
+  width: 20px; /* Standard icon size */
+  height: 20px;
+  fill: currentColor; /* Inherits color from button */
+}
+
+.my-bookmark-btn:active {
+  transform: scale(0.95);
+}
