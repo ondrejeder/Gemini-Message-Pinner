@@ -1,5 +1,5 @@
 // Global variables
-let currentUrl = window.location.href;
+let currentChatId = getChatIdFromUrl(window.location.href);
 const sidebar = document.createElement('div');
 
 // ---------------------------------------------------------
@@ -28,7 +28,18 @@ document.body.appendChild(sidebar);
 // STORAGE & LOGIC
 // ---------------------------------------------------------
 
+function getChatIdFromUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const match = urlObj.pathname.match(/\/app\/([a-zA-Z0-9_-]+)/);
+    return match ? match[1] : 'default_chat';
+  } catch (e) {
+    return 'default_chat';
+  }
+}
+
 function savePins() {
+  if (!currentChatId) return;
   const pins = [];
   const items = document.querySelectorAll('.bookmark-item');
   items.forEach(item => {
@@ -37,7 +48,14 @@ function savePins() {
       fullTextPreview: item.dataset.fullText || "" 
     });
   });
-  localStorage.setItem(currentUrl, JSON.stringify(pins));
+  
+  const data = {};
+  data[currentChatId] = pins;
+  chrome.storage.sync.set(data, () => {
+    if (chrome.runtime.lastError) {
+      console.error("Error saving pins:", chrome.runtime.lastError);
+    }
+  });
 }
 
 function restorePins() {
@@ -46,27 +64,31 @@ function restorePins() {
   sidebar.appendChild(header);
   sidebar.style.display = 'none';
 
-  const savedData = localStorage.getItem(currentUrl);
-  if (!savedData) return;
+  if (!currentChatId) return;
 
-  const pins = JSON.parse(savedData);
-  if (pins.length > 0) sidebar.style.display = 'block';
+  chrome.storage.sync.get([currentChatId], (result) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error loading pins:", chrome.runtime.lastError);
+      return;
+    }
+    
+    const pins = result[currentChatId] || [];
+    if (pins.length > 0) {
+      sidebar.style.display = 'block';
+    }
 
-  setTimeout(() => {
     pins.forEach(pin => {
-      const targetElement = findMessageByText(pin.fullTextPreview);
-      if (targetElement) {
-        createSidebarItem(targetElement, pin.label, pin.fullTextPreview);
-      }
+      createSidebarItem(pin.label, pin.fullTextPreview);
     });
-  }, 2000);
+  });
 }
 
 function findMessageByText(searchText) {
   if (!searchText) return null;
-  const candidates = document.querySelectorAll('div, span, p'); 
+  // User messages mostly have IDs starting with 'user-query-content'.
+  const candidates = document.querySelectorAll('[id^="user-query-content"]'); 
   for (let el of candidates) {
-    if (el.innerText === searchText) return el;
+    if (el.innerText.trim() === searchText.trim()) return el;
   }
   return null;
 }
@@ -75,7 +97,7 @@ function findMessageByText(searchText) {
 // UI CREATION
 // ---------------------------------------------------------
 
-function createSidebarItem(targetElement, labelText, fullText) {
+function createSidebarItem(labelText, fullText) {
   const bookmark = document.createElement('div');
   bookmark.className = 'bookmark-item';
   bookmark.dataset.fullText = fullText;
@@ -108,7 +130,9 @@ function createSidebarItem(targetElement, labelText, fullText) {
     e.stopPropagation(); 
     bookmark.remove();
     savePins();
-    if (sidebar.children.length <= 1) sidebar.style.display = 'none';
+    if (sidebar.querySelectorAll('.bookmark-item').length === 0) {
+      sidebar.style.display = 'none';
+    }
   };
 
   actionsDiv.appendChild(editBtn);
@@ -118,12 +142,18 @@ function createSidebarItem(targetElement, labelText, fullText) {
 
   bookmark.onclick = (e) => {
     if (e.target.closest('.bm-action')) return;
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     
-    targetElement.style.transition = "background 0.3s";
-    const oldBg = targetElement.style.backgroundColor;
-    targetElement.style.backgroundColor = "rgba(168, 199, 250, 0.3)"; 
-    setTimeout(() => { targetElement.style.backgroundColor = oldBg; }, 1000);
+    const targetElement = findMessageByText(fullText);
+    
+    if (targetElement) {
+      targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetElement.style.transition = "background 0.3s";
+      const oldBg = targetElement.style.backgroundColor;
+      targetElement.style.backgroundColor = "rgba(168, 199, 250, 0.3)"; 
+      setTimeout(() => { targetElement.style.backgroundColor = oldBg; }, 1000);
+    } else {
+      alert("Message not fully loaded on page yet.");
+    }
   };
 
   sidebar.appendChild(bookmark);
@@ -136,8 +166,18 @@ function addBookmark(textElement) {
     return;
   }
   const fullText = textElement.innerText;
+  
+  // Prevent duplicate pins
+  const existingPins = document.querySelectorAll('.bookmark-item');
+  for (let pin of existingPins) {
+    if (pin.dataset.fullText === fullText) {
+      alert("This prompt is already pinned.");
+      return;
+    }
+  }
+
   let name = fullText.substring(0, 40).replace(/\n/g, ' ') + "...";
-  createSidebarItem(textElement, name, fullText);
+  createSidebarItem(name, fullText);
   savePins();
 }
 
@@ -148,27 +188,19 @@ function addBookmark(textElement) {
 function injectPinButtons() {
   const allActionButtons = document.querySelectorAll('button[aria-controls^="user-query-content"]');
   
-  // MAP to deduplicate: Key = Message ID, Value = The Button Element
-  // This ensures we only select ONE button per user message.
   const uniqueMessages = new Map();
 
   allActionButtons.forEach(btn => {
     const msgId = btn.getAttribute('aria-controls');
-    // We overwrite so we get the last one (usually the Edit button), 
-    // or you can check if(!has) to keep the first one.
-    // Let's stick with the last one as it usually sits on the edge.
     uniqueMessages.set(msgId, btn);
   });
 
-  // Now iterate ONLY through the unique message IDs
   uniqueMessages.forEach((btn, msgId) => {
     const container = btn.parentElement;
     if (!container) return;
 
-    // Check if THIS specific container already has our pin
     if (container.querySelector('.my-bookmark-btn')) return;
 
-    // Create Pin Button
     const pinBtn = document.createElement('div');
     pinBtn.innerHTML = ICONS.bookmarkAdd; 
     pinBtn.className = 'my-bookmark-btn';
@@ -205,8 +237,9 @@ function injectPinButtons() {
 }
 
 function checkUrlChange() {
-  if (window.location.href !== currentUrl) {
-    currentUrl = window.location.href;
+  const newChatId = getChatIdFromUrl(window.location.href);
+  if (newChatId !== currentChatId) {
+    currentChatId = newChatId;
     restorePins();
   }
 }
@@ -215,5 +248,25 @@ function checkUrlChange() {
 // RUN
 // ---------------------------------------------------------
 restorePins();
-setInterval(injectPinButtons, 1000); 
-setInterval(checkUrlChange, 1000);
+
+// Use MutationObserver instead of setInterval for performance
+const observer = new MutationObserver((mutations) => {
+  let shouldCheck = false;
+  for (const mutation of mutations) {
+    if (mutation.addedNodes.length > 0) {
+      shouldCheck = true;
+      break;
+    }
+  }
+  if (shouldCheck) {
+    injectPinButtons();
+  }
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+// Fallback checking for SPA route changes via History API and popstate
+window.addEventListener('popstate', checkUrlChange);
+// Since simple pushes using history.pushState won't trigger popstate, 
+// a lightweight interval only comparing string equality on the URL is highly performant.
+setInterval(checkUrlChange, 500);
